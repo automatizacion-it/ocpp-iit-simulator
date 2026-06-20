@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IIT · Simulador Cargador</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --bg:#080b10;
+    --bg-panel:#0d1117;
+    --bg-card:#11161d;
+    --cyan:#00d4ff;
+    --green:#10b981;
+    --purple:#7c3aed;
+    --amber:#f59e0b;
+    --red:#ef4444;
+    --border:#1c2530;
+    --text:#e6edf3;
+    --text-dim:#6b7785;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Mono', monospace;
+    min-height:100vh;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:880px; margin:0 auto;}
+
+  /* ── HEADER / CHIP ── */
+  header{
+    display:flex; align-items:center; gap:14px;
+    margin-bottom:28px; padding-bottom:20px;
+    border-bottom:1px solid var(--border);
+  }
+  .chip-logo{flex-shrink:0;}
+  h1{
+    font-family:'Syne', sans-serif; font-weight:800;
+    font-size:22px; letter-spacing:0.5px;
+    color:var(--text);
+  }
+  h1 span{color:var(--cyan);}
+  .subtitle{font-size:11px; color:var(--text-dim); margin-top:3px; letter-spacing:0.5px;}
+
+  /* ── STATUS BAR ── */
+  .status-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--bg-panel); border:1px solid var(--border);
+    border-radius:10px; padding:14px 18px; margin-bottom:20px;
+  }
+  .status-left{display:flex; align-items:center; gap:10px;}
+  .dot{width:10px; height:10px; border-radius:50%; background:var(--text-dim); transition:all .3s;}
+  .dot.live{background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.5}}
+  .status-id{font-size:12px; color:var(--text-dim);}
+  .status-id b{color:var(--cyan); font-weight:700;}
+  .state-badge{
+    font-size:11px; font-weight:700; padding:5px 12px; border-radius:20px;
+    background:var(--bg-card); border:1px solid var(--border); color:var(--text-dim);
+    letter-spacing:0.5px; text-transform:uppercase;
+  }
+  .state-badge.available{color:var(--green); border-color:var(--green);}
+  .state-badge.preparing{color:var(--amber); border-color:var(--amber);}
+  .state-badge.charging{color:var(--cyan); border-color:var(--cyan);}
+  .state-badge.faulted{color:var(--red); border-color:var(--red);}
+  .state-badge.finishing{color:var(--purple); border-color:var(--purple);}
+
+  /* ── METER LIVE ── */
+  .meter{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+    margin-bottom:24px;
+  }
+  .meter-card{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;
+    padding:14px; text-align:center;
+  }
+  .meter-label{font-size:9px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px;}
+  .meter-value{font-family:'Syne',sans-serif; font-weight:800; font-size:20px; color:var(--cyan);}
+  .meter-value.green{color:var(--green);}
+  .meter-unit{font-size:10px; color:var(--text-dim); margin-left:2px;}
+
+  /* ── SECTIONS ── */
+  .section{margin-bottom:22px;}
+  .section-title{
+    font-size:11px; font-weight:700; color:var(--text-dim);
+    letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{content:''; flex:1; height:1px; background:var(--border);}
+
+  .btn-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;}
+  button{
+    font-family:'Space Mono', monospace; font-size:12px; font-weight:700;
+    padding:13px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--bg-card); color:var(--text); cursor:pointer;
+    transition:all .15s; letter-spacing:0.3px; text-align:left;
+    position:relative; overflow:hidden;
+  }
+  button:hover:not(:disabled){transform:translateY(-1px); filter:brightness(1.15);}
+  button:active:not(:disabled){transform:translateY(0);}
+  button:disabled{opacity:0.35; cursor:not-allowed;}
+  button .sub{display:block; font-size:9px; color:var(--text-dim); font-weight:400; margin-top:3px;}
+
+  .btn-cyan{border-color:var(--cyan); color:var(--cyan);}
+  .btn-green{border-color:var(--green); color:var(--green);}
+  .btn-amber{border-color:var(--amber); color:var(--amber);}
+  .btn-red{border-color:var(--red); color:var(--red);}
+  .btn-purple{border-color:var(--purple); color:var(--purple);}
+
+  /* ── RFID INPUT ── */
+  .rfid-row{display:flex; gap:8px; margin-bottom:10px;}
+  .rfid-row input{
+    flex:1; font-family:'Space Mono',monospace; font-size:12px;
+    background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px; color:var(--text);
+  }
+  .rfid-row input:focus{outline:none; border-color:var(--cyan);}
+
+  /* ── LOG ── */
+  .log-box{
+    background:#05070a; border:1px solid var(--border); border-radius:10px;
+    padding:14px; height:200px; overflow-y:auto; font-size:11px;
+    line-height:1.7;
+  }
+  .log-line{display:flex; gap:8px; margin-bottom:2px;}
+  .log-time{color:var(--text-dim); flex-shrink:0;}
+  .log-out{color:var(--cyan);}
+  .log-in{color:var(--green);}
+  .log-sys{color:var(--text-dim); font-style:italic;}
+  .log-err{color:var(--red);}
+
+  footer{text-align:center; margin-top:30px; font-size:10px; color:var(--text-dim); letter-spacing:0.5px;}
+  footer b{color:var(--cyan);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--border); border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg class="chip-logo" width="40" height="40" viewBox="0 0 40 40">
+      <rect x="2" y="2" width="36" height="36" rx="6" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+      <rect x="9" y="9" width="22" height="22" rx="3" fill="none" stroke="#10b981" stroke-width="1.2"/>
+      <circle cx="20" cy="20" r="4" fill="#7c3aed"/>
+      <line x1="2" y1="14" x2="9" y2="14" stroke="#00d4ff" stroke-width="1.5"/>
+      <line x1="2" y1="26" x2="9" y2="26" stroke="#00d4ff" stroke-width="1.5"/>
+      <line x1="31" y1="14" x2="38" y2="14" stroke="#00d4ff" stroke-width="1.5"/>
+      <line x1="31" y1="26" x2="38" y2="26" stroke="#00d4ff" stroke-width="1.5"/>
+    </svg>
+    <div>
+      <h1>CARGADOR <span>IIT</span> — Simulador</h1>
+      <div class="subtitle">CHARGE POINT · OCPP 1.6J · ESP32_GPIO_PRO_S3V5</div>
+    </div>
+  </header>
+
+  <div class="status-bar">
+    <div class="status-left">
+      <div class="dot" id="connDot"></div>
+      <span class="status-id">canal: <b>ocpp-iit-channel</b></span>
+    </div>
+    <div class="state-badge available" id="stateBadge">Available</div>
+  </div>
+
+  <div class="meter">
+    <div class="meter-card">
+      <div class="meter-label">Energía</div>
+      <div class="meter-value" id="mKwh">0.00<span class="meter-unit">kWh</span></div>
+    </div>
+    <div class="meter-card">
+      <div class="meter-label">Potencia</div>
+      <div class="meter-value green" id="mW">0<span class="meter-unit">W</span></div>
+    </div>
+    <div class="meter-card">
+      <div class="meter-label">Voltaje</div>
+      <div class="meter-value" id="mV">0.0<span class="meter-unit">V</span></div>
+    </div>
+    <div class="meter-card">
+      <div class="meter-label">Corriente</div>
+      <div class="meter-value" id="mA">0.0<span class="meter-unit">A</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Conexión</div>
+    <div class="btn-grid">
+      <button class="btn-cyan" id="btnBoot" onclick="sendBoot()">BootNotification
+        <span class="sub">Registrar cargador en CSMS</span>
+      </button>
+      <button class="btn-cyan" id="btnHeartbeat" onclick="sendHeartbeat()" disabled>Heartbeat
+        <span class="sub">Keep-alive manual</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Autorización</div>
+    <div class="rfid-row">
+      <input type="text" id="idTag" value="IIT-USER-001" placeholder="idTag (RFID)">
+    </div>
+    <div class="btn-grid">
+      <button class="btn-green" id="btnAuth" onclick="sendAuthorize()" disabled>Authorize
+        <span class="sub">Presentar tarjeta RFID</span>
+      </button>
+      <button class="btn-amber" id="btnPlug" onclick="plugIn()" disabled>Conectar cable
+        <span class="sub">StatusNotification → Preparing</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Transacción</div>
+    <div class="btn-grid">
+      <button class="btn-green" id="btnStart" onclick="sendStartTransaction()" disabled>StartTransaction
+        <span class="sub">Inicia sesión de carga</span>
+      </button>
+      <button class="btn-red" id="btnStop" onclick="sendStopTransaction()" disabled>StopTransaction
+        <span class="sub">Detiene sesión (Local)</span>
+      </button>
+      <button class="btn-purple" id="btnUnplug" onclick="unplug()" disabled>Desconectar cable
+        <span class="sub">EVDisconnected</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Telemetría &amp; Errores</div>
+    <div class="btn-grid">
+      <button class="btn-cyan" id="btnMeterAuto" onclick="toggleMeterValues()" disabled>▶ MeterValues auto
+        <span class="sub">Envía lecturas cada 3s</span>
+      </button>
+      <button class="btn-red" onclick="sendFault()" disabled id="btnFault">StatusNotification
+        <span class="sub">Simular Faulted (sobre-temp)</span>
+      </button>
+      <button class="btn-amber" onclick="clearFault()" id="btnClearFault" style="display:none">Resolver falla
+        <span class="sub">Vuelve a Available</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Log de mensajes — saliente / entrante</div>
+    <div class="log-box" id="log"></div>
+  </div>
+
+  <footer>
+    Abre <b>csms.html</b> en otra pestaña del mismo navegador para ver los mensajes llegar en tiempo real.
+  </footer>
+
+</div>
+
+<script>
+const CHARGE_POINT_ID = 'IIT-CHARGER-001';
+const channel = new BroadcastChannel('ocpp-iit-channel');
+
+let state = {
+  connected: false,
+  status: 'Unavailable',
+  transactionId: null,
+  meterWh: 0,
+  meterInterval: null,
+  idTag: null,
+  msgCounter: 1
+};
+
+const $ = id => document.getElementById(id);
+
+function log(direction, text){
+  const box = $('log');
+  const time = new Date().toLocaleTimeString('es-CO', {hour12:false});
+  const cls = direction === 'out' ? 'log-out' : direction === 'in' ? 'log-in' : direction === 'err' ? 'log-err' : 'log-sys';
+  const arrow = direction === 'out' ? '→ CP→CSMS' : direction === 'in' ? '← CSMS→CP' : direction === 'err' ? '✕ ERROR' : '·';
+  box.innerHTML += `<div class="log-line"><span class="log-time">${time}</span><span class="${cls}">${arrow} ${text}</span></div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function setState(newStatus){
+  state.status = newStatus;
+  const badge = $('stateBadge');
+  badge.textContent = newStatus;
+  badge.className = 'state-badge ' + newStatus.toLowerCase();
+}
+
+function broadcastMsg(action, payload, msgType='req'){
+  const msgId = 'msg-' + (state.msgCounter++);
+  const ocppFrame = msgType === 'req'
+    ? [2, msgId, action, payload]
+    : [3, msgId, payload];
+
+  channel.postMessage({
+    from: 'charger',
+    chargePointId: CHARGE_POINT_ID,
+    action, payload, msgId, frame: ocppFrame,
+    timestamp: new Date().toISOString()
+  });
+  log('out', `<b>${action}</b> ${JSON.stringify(payload)}`);
+  return msgId;
+}
+
+// ── BOOT ──
+function sendBoot(){
+  broadcastMsg('BootNotification', {
+    chargePointVendor: 'IIT',
+    chargePointModel: 'ESP32_GPIO_PRO_S3V5',
+    firmwareVersion: '1.0.0'
+  });
+  $('connDot').classList.add('live');
+  $('btnBoot').disabled = true;
+  $('btnHeartbeat').disabled = false;
+  $('btnAuth').disabled = false;
+  $('btnFault').disabled = false;
+  state.connected = true;
+  setState('Available');
+}
+
+function sendHeartbeat(){
+  broadcastMsg('Heartbeat', {});
+}
+
+// ── AUTHORIZE ──
+function sendAuthorize(){
+  const idTag = $('idTag').value || 'UNKNOWN';
+  state.idTag = idTag;
+  broadcastMsg('Authorize', { idTag });
+  $('btnPlug').disabled = false;
+}
+
+function plugIn(){
+  setState('Preparing');
+  broadcastMsg('StatusNotification', { connectorId: 1, status: 'Preparing', errorCode: 'NoError' });
+  $('btnStart').disabled = false;
+  $('btnPlug').disabled = true;
+}
+
+function unplug(){
+  setState('Available');
+  broadcastMsg('StatusNotification', { connectorId: 1, status: 'Available', errorCode: 'NoError' });
+  $('btnUnplug').disabled = true;
+  $('btnPlug').disabled = false;
+}
+
+// ── TRANSACTION ──
+function sendStartTransaction(){
+  state.meterWh = 0;
+  broadcastMsg('StartTransaction', {
+    connectorId: 1,
+    idTag: state.idTag || $('idTag').value,
+    meterStart: 0,
+    timestamp: new Date().toISOString()
+  });
+  setState('Charging');
+  $('btnStart').disabled = true;
+  $('btnStop').disabled = false;
+  $('btnMeterAuto').disabled = false;
+  $('btnUnplug').disabled = true;
+}
+
+function sendStopTransaction(reason='Local'){
+  stopMeterValues();
+  broadcastMsg('StopTransaction', {
+    transactionId: state.transactionId || 1,
+    idTag: state.idTag,
+    meterStop: Math.round(state.meterWh),
+    timestamp: new Date().toISOString(),
+    reason
+  });
+  setState('Finishing');
+  $('btnStop').disabled = true;
+  $('btnMeterAuto').disabled = true;
+  $('btnMeterAuto').textContent = '▶ MeterValues auto';
+  $('btnUnplug').disabled = false;
+  setTimeout(()=> setState('Available'), 1500);
+}
+
+// ── METER VALUES ──
+function toggleMeterValues(){
+  if (state.meterInterval){
+    stopMeterValues();
+  } else {
+    $('btnMeterAuto').textContent = '■ Detener MeterValues';
+    state.meterInterval = setInterval(sendMeterValues, 3000);
+    sendMeterValues();
+  }
+}
+function stopMeterValues(){
+  clearInterval(state.meterInterval);
+  state.meterInterval = null;
+  $('btnMeterAuto').textContent = '▶ MeterValues auto';
+}
+
+function sendMeterValues(){
+  const watts = 6800 + Math.round(Math.random()*400 - 200);
+  const volts = 219 + Math.random()*2;
+  const amps = watts / volts;
+  state.meterWh += (watts * 3) / 3600; // 3s interval → Wh acumulados
+
+  $('mKwh').innerHTML = (state.meterWh/1000).toFixed(3) + '<span class="meter-unit">kWh</span>';
+  $('mW').innerHTML = Math.round(watts) + '<span class="meter-unit">W</span>';
+  $('mV').innerHTML = volts.toFixed(1) + '<span class="meter-unit">V</span>';
+  $('mA').innerHTML = amps.toFixed(1) + '<span class="meter-unit">A</span>';
+
+  broadcastMsg('MeterValues', {
+    connectorId: 1,
+    transactionId: state.transactionId || 1,
+    meterValue: [{
+      timestamp: new Date().toISOString(),
+      sampledValue: [
+        { value: state.meterWh.toFixed(1), measurand: 'Energy.Active.Import.Register', unit: 'Wh' },
+        { value: watts.toFixed(0), measurand: 'Power.Active.Import', unit: 'W' },
+        { value: volts.toFixed(1), measurand: 'Voltage', unit: 'V' },
+        { value: amps.toFixed(2), measurand: 'Current.Import', unit: 'A' }
+      ]
+    }]
+  });
+}
+
+// ── FAULT ──
+function sendFault(){
+  setState('Faulted');
+  broadcastMsg('StatusNotification', { connectorId: 1, status: 'Faulted', errorCode: 'OverTemperature' });
+  $('btnFault').style.display = 'none';
+  $('btnClearFault').style.display = 'block';
+  stopMeterValues();
+}
+function clearFault(){
+  setState('Available');
+  broadcastMsg('StatusNotification', { connectorId: 1, status: 'Available', errorCode: 'NoError' });
+  $('btnFault').style.display = 'block';
+  $('btnClearFault').style.display = 'none';
+}
+
+// ── RECEIVE FROM CSMS (RemoteStart / RemoteStop) ──
+channel.onmessage = (event) => {
+  const msg = event.data;
+  if (msg.from !== 'csms') return;
+
+  log('in', `<b>${msg.action}</b> ${JSON.stringify(msg.payload)}`);
+
+  if (msg.action === 'RemoteStartTransaction'){
+    $('idTag').value = msg.payload.idTag;
+    state.idTag = msg.payload.idTag;
+    if (state.status === 'Available'){
+      plugIn();
+      setTimeout(sendStartTransaction, 600);
+    }
+  }
+  if (msg.action === 'RemoteStopTransaction'){
+    if (state.status === 'Charging') sendStopTransaction('Remote');
+  }
+  if (msg.action === 'Reset'){
+    log('sys', 'Reset solicitado por CSMS — reiniciando simulador...');
+    setTimeout(()=> location.reload(), 1000);
+  }
+};
+
+log('sys', 'Simulador listo. Pulsa BootNotification para conectar al CSMS.');
+</script>
+</body>
+</html>

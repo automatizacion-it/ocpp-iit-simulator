@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IIT · Monitor CSMS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --bg:#080b10;
+    --bg-panel:#0d1117;
+    --bg-card:#11161d;
+    --cyan:#00d4ff;
+    --green:#10b981;
+    --purple:#7c3aed;
+    --amber:#f59e0b;
+    --red:#ef4444;
+    --border:#1c2530;
+    --text:#e6edf3;
+    --text-dim:#6b7785;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Space Mono', monospace;
+    min-height:100vh; padding:24px 16px 60px;
+  }
+  .wrap{max-width:980px; margin:0 auto;}
+
+  header{
+    display:flex; align-items:center; gap:14px;
+    margin-bottom:24px; padding-bottom:20px;
+    border-bottom:1px solid var(--border);
+  }
+  h1{font-family:'Syne', sans-serif; font-weight:800; font-size:22px;}
+  h1 span{color:var(--green);}
+  .subtitle{font-size:11px; color:var(--text-dim); margin-top:3px; letter-spacing:0.5px;}
+
+  .grid-top{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;}
+  @media (max-width:700px){.grid-top{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px 18px;
+  }
+  .card-title{
+    font-size:10px; color:var(--text-dim); letter-spacing:1.5px;
+    text-transform:uppercase; margin-bottom:12px; display:flex; align-items:center; gap:8px;
+  }
+  .card-title .dot{width:7px; height:7px; border-radius:50%; background:var(--text-dim);}
+  .card-title .dot.live{background:var(--green); box-shadow:0 0 6px var(--green); animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.5}}
+
+  .field{display:flex; justify-content:space-between; padding:6px 0; font-size:12px; border-bottom:1px solid var(--border);}
+  .field:last-child{border:none;}
+  .field-label{color:var(--text-dim);}
+  .field-value{color:var(--cyan); font-weight:700;}
+  .field-value.green{color:var(--green);}
+  .field-value.amber{color:var(--amber);}
+  .field-value.red{color:var(--red);}
+
+  .state-badge{
+    font-size:11px; font-weight:700; padding:4px 12px; border-radius:20px;
+    background:var(--bg-card); border:1px solid var(--border); color:var(--text-dim);
+    letter-spacing:0.5px; text-transform:uppercase; display:inline-block;
+  }
+  .state-badge.available{color:var(--green); border-color:var(--green);}
+  .state-badge.preparing{color:var(--amber); border-color:var(--amber);}
+  .state-badge.charging{color:var(--cyan); border-color:var(--cyan);}
+  .state-badge.faulted{color:var(--red); border-color:var(--red);}
+  .state-badge.finishing{color:var(--purple); border-color:var(--purple);}
+  .state-badge.unavailable{color:var(--text-dim);}
+
+  /* ── LIVE METER CHART ── */
+  .meter-live{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;}
+  .meter-card{background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;}
+  .meter-label{font-size:9px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px;}
+  .meter-value{font-family:'Syne',sans-serif; font-weight:800; font-size:20px; color:var(--cyan);}
+  .meter-unit{font-size:10px; color:var(--text-dim); margin-left:2px;}
+
+  canvas{width:100%; height:80px; display:block;}
+
+  /* ── REMOTE CONTROL ── */
+  .remote-section{margin-bottom:20px;}
+  .section-title{
+    font-size:11px; font-weight:700; color:var(--text-dim);
+    letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{content:''; flex:1; height:1px; background:var(--border);}
+  .btn-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px;}
+  button{
+    font-family:'Space Mono', monospace; font-size:12px; font-weight:700;
+    padding:13px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--bg-card); color:var(--text); cursor:pointer;
+    transition:all .15s; text-align:left;
+  }
+  button:hover:not(:disabled){transform:translateY(-1px); filter:brightness(1.15);}
+  button:disabled{opacity:0.3; cursor:not-allowed;}
+  button .sub{display:block; font-size:9px; color:var(--text-dim); font-weight:400; margin-top:3px;}
+  .btn-green{border-color:var(--green); color:var(--green);}
+  .btn-red{border-color:var(--red); color:var(--red);}
+  .btn-purple{border-color:var(--purple); color:var(--purple);}
+
+  /* ── TRANSACTIONS TABLE ── */
+  .tx-table{width:100%; border-collapse:collapse; font-size:11px; margin-top:8px;}
+  .tx-table th{text-align:left; color:var(--text-dim); font-weight:400; padding:6px 8px; border-bottom:1px solid var(--border);}
+  .tx-table td{padding:6px 8px; border-bottom:1px solid var(--border); color:var(--text);}
+  .tx-table tr:last-child td{border:none;}
+
+  /* ── LOG ── */
+  .log-box{
+    background:#05070a; border:1px solid var(--border); border-radius:10px;
+    padding:14px; height:340px; overflow-y:auto; font-size:11px; line-height:1.7;
+  }
+  .log-line{display:flex; gap:8px; margin-bottom:2px; flex-wrap:wrap;}
+  .log-time{color:var(--text-dim); flex-shrink:0;}
+  .log-out{color:var(--purple);}
+  .log-in{color:var(--green);}
+  .log-sys{color:var(--text-dim); font-style:italic;}
+  .log-payload{color:#4a5568; font-size:10px;}
+
+  footer{text-align:center; margin-top:30px; font-size:10px; color:var(--text-dim);}
+  footer b{color:var(--green);}
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--border); border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg width="40" height="40" viewBox="0 0 40 40">
+      <rect x="2" y="2" width="36" height="36" rx="6" fill="none" stroke="#10b981" stroke-width="1.5"/>
+      <rect x="9" y="9" width="22" height="22" rx="3" fill="none" stroke="#00d4ff" stroke-width="1.2"/>
+      <circle cx="20" cy="20" r="4" fill="#7c3aed"/>
+      <line x1="2" y1="14" x2="9" y2="14" stroke="#10b981" stroke-width="1.5"/>
+      <line x1="2" y1="26" x2="9" y2="26" stroke="#10b981" stroke-width="1.5"/>
+      <line x1="31" y1="14" x2="38" y2="14" stroke="#10b981" stroke-width="1.5"/>
+      <line x1="31" y1="26" x2="38" y2="26" stroke="#10b981" stroke-width="1.5"/>
+    </svg>
+    <div>
+      <h1>CSMS <span>IIT</span> — Monitor</h1>
+      <div class="subtitle">CENTRAL SYSTEM · OCPP 1.6J · recibe en ocpp-iit-channel</div>
+    </div>
+  </header>
+
+  <div class="grid-top">
+    <div class="card">
+      <div class="card-title"><span class="dot" id="connDot"></span> Cargador conectado</div>
+      <div class="field"><span class="field-label">chargePointId</span><span class="field-value" id="cpId">—</span></div>
+      <div class="field"><span class="field-label">Vendor / Modelo</span><span class="field-value" id="cpModel">—</span></div>
+      <div class="field"><span class="field-label">Estado</span><span class="state-badge unavailable" id="cpState">Unavailable</span></div>
+      <div class="field"><span class="field-label">idTag activo</span><span class="field-value green" id="cpIdTag">—</span></div>
+      <div class="field"><span class="field-label">transactionId</span><span class="field-value" id="cpTxId">—</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot live"></span> Resumen de sesión</div>
+      <div class="field"><span class="field-label">Mensajes recibidos</span><span class="field-value" id="msgCount">0</span></div>
+      <div class="field"><span class="field-label">Energía total sesión</span><span class="field-value green" id="sessionKwh">0.000 kWh</span></div>
+      <div class="field"><span class="field-label">Costo estimado</span><span class="field-value amber" id="sessionCost">$ 0 COP</span></div>
+      <div class="field"><span class="field-label">Último mensaje</span><span class="field-value" id="lastMsg">—</span></div>
+      <div class="field"><span class="field-label">Última hora</span><span class="field-value" id="lastTime">—</span></div>
+    </div>
+  </div>
+
+  <div class="meter-live">
+    <div class="meter-card"><div class="meter-label">Energía</div><div class="meter-value" id="mKwh">0.00<span class="meter-unit">kWh</span></div></div>
+    <div class="meter-card"><div class="meter-label">Potencia</div><div class="meter-value" id="mW">0<span class="meter-unit">W</span></div></div>
+    <div class="meter-card"><div class="meter-label">Voltaje</div><div class="meter-value" id="mV">0.0<span class="meter-unit">V</span></div></div>
+    <div class="meter-card"><div class="meter-label">Corriente</div><div class="meter-value" id="mA">0.0<span class="meter-unit">A</span></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title">Potencia en tiempo real (W)</div>
+    <canvas id="chart" width="900" height="80"></canvas>
+  </div>
+
+  <div class="remote-section">
+    <div class="section-title">Comandos remotos → cargador</div>
+    <div class="btn-grid">
+      <button class="btn-green" onclick="remoteStart()">RemoteStartTransaction
+        <span class="sub">Inicia carga desde CSMS / app</span>
+      </button>
+      <button class="btn-red" onclick="remoteStop()">RemoteStopTransaction
+        <span class="sub">Detiene carga remotamente</span>
+      </button>
+      <button class="btn-purple" onclick="remoteReset()">Reset
+        <span class="sub">Reinicia el cargador</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section-title">Mensajes OCPP — log completo</div>
+  <div class="log-box" id="log"></div>
+
+  <footer>Escuchando en <b>ocpp-iit-channel</b> · abre <b>cargador.html</b> en otra pestaña para simular eventos</footer>
+
+</div>
+
+<script>
+const channel = new BroadcastChannel('ocpp-iit-channel');
+const $ = id => document.getElementById(id);
+
+let msgCount = 0;
+let powerHistory = [];
+const COP_PER_KWH = 1200;
+
+function log(direction, action, payload){
+  const box = $('log');
+  const time = new Date().toLocaleTimeString('es-CO', {hour12:false});
+  const cls = direction === 'in' ? 'log-in' : 'log-out';
+  const arrow = direction === 'in' ? '← CP→CSMS' : '→ CSMS→CP';
+  box.innerHTML += `<div class="log-line">
+    <span class="log-time">${time}</span>
+    <span class="${cls}"><b>${arrow} ${action}</b></span>
+    <span class="log-payload">${JSON.stringify(payload)}</span>
+  </div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function setStateBadge(status){
+  const badge = $('cpState');
+  badge.textContent = status;
+  badge.className = 'state-badge ' + status.toLowerCase();
+}
+
+function drawChart(){
+  const canvas = $('chart');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  if (powerHistory.length < 2) return;
+
+  const max = Math.max(...powerHistory, 100);
+  const step = w / (powerHistory.length - 1);
+
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  powerHistory.forEach((val, i) => {
+    const x = i * step;
+    const y = h - (val / max) * (h - 10) - 5;
+    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(0,212,255,0.08)';
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+channel.onmessage = (event) => {
+  const msg = event.data;
+  if (msg.from !== 'charger') return;
+
+  msgCount++;
+  $('msgCount').textContent = msgCount;
+  $('lastMsg').textContent = msg.action;
+  $('lastTime').textContent = new Date().toLocaleTimeString('es-CO', {hour12:false});
+  $('connDot').classList.add('live');
+
+  log('in', msg.action, msg.payload);
+
+  switch(msg.action){
+    case 'BootNotification':
+      $('cpId').textContent = msg.chargePointId;
+      $('cpModel').textContent = `${msg.payload.chargePointVendor} ${msg.payload.chargePointModel}`;
+      setStateBadge('Available');
+      break;
+
+    case 'StatusNotification':
+      setStateBadge(msg.payload.status);
+      break;
+
+    case 'Authorize':
+      $('cpIdTag').textContent = msg.payload.idTag;
+      break;
+
+    case 'StartTransaction':
+      $('cpTxId').textContent = '1';
+      powerHistory = [];
+      setStateBadge('Charging');
+      break;
+
+    case 'StopTransaction':
+      $('cpTxId').textContent = '— (finalizada)';
+      break;
+
+    case 'MeterValues': {
+      const vals = msg.payload.meterValue[0].sampledValue;
+      const kwh = vals.find(v => v.measurand === 'Energy.Active.Import.Register');
+      const w = vals.find(v => v.measurand === 'Power.Active.Import');
+      const v = vals.find(v => v.measurand === 'Voltage');
+      const a = vals.find(v => v.measurand === 'Current.Import');
+
+      const kwhVal = parseFloat(kwh.value)/1000;
+      $('mKwh').innerHTML = kwhVal.toFixed(3) + '<span class="meter-unit">kWh</span>';
+      $('mW').innerHTML = Math.round(w.value) + '<span class="meter-unit">W</span>';
+      $('mV').innerHTML = parseFloat(v.value).toFixed(1) + '<span class="meter-unit">V</span>';
+      $('mA').innerHTML = parseFloat(a.value).toFixed(1) + '<span class="meter-unit">A</span>';
+
+      $('sessionKwh').textContent = kwhVal.toFixed(3) + ' kWh';
+      $('sessionCost').textContent = '$ ' + Math.round(kwhVal * COP_PER_KWH).toLocaleString('es-CO') + ' COP';
+
+      powerHistory.push(parseFloat(w.value));
+      if (powerHistory.length > 40) powerHistory.shift();
+      drawChart();
+      break;
+    }
+  }
+};
+
+function sendToCharger(action, payload){
+  channel.postMessage({
+    from: 'csms',
+    action, payload,
+    timestamp: new Date().toISOString()
+  });
+  log('out', action, payload);
+}
+
+function remoteStart(){
+  sendToCharger('RemoteStartTransaction', { connectorId: 1, idTag: 'CSMS-REMOTE-' + Math.floor(Math.random()*900+100) });
+}
+function remoteStop(){
+  sendToCharger('RemoteStopTransaction', { transactionId: 1 });
+}
+function remoteReset(){
+  sendToCharger('Reset', { type: 'Soft' });
+}
+
+log('sys', 'Sistema', 'Monitor CSMS iniciado. Esperando BootNotification del cargador...');
+</script>
+</body>
+</html>
