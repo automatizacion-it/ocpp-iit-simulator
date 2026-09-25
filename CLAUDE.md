@@ -4,13 +4,21 @@ Contexto del proyecto para sesiones futuras de Claude (o de cualquier desarrolla
 
 ## Qué es esto
 
-Simulador de protocolo **OCPP 1.6J** para validar el flujo de mensajes del ecosistema de cargadores **IIT** (Infraestructura-IT) antes de tocar hardware real (ESP32-S3) o levantar un servidor CSMS en producción.
+Simulador de protocolo **OCPP 1.6J** para validar el flujo de mensajes del ecosistema de cargadores **IIT** (Infraestructura-IT) y del cargador físico DC 30 kW (EU-30KW, placa MDXDC3001) antes de levantar el CSMS en producción.
 
 Dos páginas HTML estáticas, sin backend, sin dependencias, comunicadas vía `BroadcastChannel` del navegador.
 
 ## Por qué existe
 
-Parte de la decisión de construir un **PaaS vertical EV** propio para IIT — fabricación de cargadores propios + CSMS propio en Node.js (extensión de `relay.js`) + app móvil, en lugar de depender de plataformas de terceros (Tuya Smart, MubOn, etc). Ver contexto de negocio: mercado colombiano de carga EV (MubOn, Evsy, Ergenia), comparación de costos hardware ($250-320 USD BOM propio vs $1.400 USD marcas premium importadas), y arquitectura completa documentada en sesiones previas de Claude (no versionadas en este repo).
+Banco de pruebas OCPP de la plataforma **Electrolineras** (marketplace de operadores con comisión por sesión). El hardware de referencia es un cargador comercial DC 30 kW ya en mano; IIT no fabrica el cargador, solo desarrolla el CSMS.
+
+## Cargador de referencia
+
+- Modelo EU-30KW, placa MDXDC3001, serie MDX20260715001, conector CCS2, salida 200–1000 VDC / 0–100 A
+- Controladora STM32, firmware SSWL_DC-V1.0.69 (SSWL; servidor OCPP de fábrica ocpp.sswl.com)
+- Comunicación: Ethernet, WiFi o 4G (Quectel EC20, sin SIM por ahora); OCPP 1.6J, con TLS opcional
+- Parámetros OCPP en pantalla: `domain_master`, `pile_number_master`, `pile_password_master`; red en Set up → Net Settings
+- Carga real registrada en logs: ~422 V, 50–65 A (≈21–27 kW)
 
 ## Estado actual
 
@@ -18,7 +26,8 @@ Parte de la decisión de construir un **PaaS vertical EV** propio para IIT — f
 - ✅ `csms.html` — monitor Central System: recepción en tiempo real, gráfica de potencia (canvas), costo estimado en COP ($1.200/kWh hardcoded), envío de comandos remotos
 - ✅ Identidad visual IIT aplicada (cyan `#00d4ff`, verde `#10b981`, púrpura `#7c3aed`, Syne + Space Mono)
 - ⬜ Sin persistencia — todo el estado vive en memoria del navegador, se pierde al recargar
-- ⬜ Sin servidor — `BroadcastChannel` solo funciona entre pestañas del mismo navegador, mismo origen `file://`
+- ✅ `server/csms-server.js` — CSMS OCPP 1.6J mínimo por WebSocket para conectar el cargador real en LAN; registra el tráfico en JSONL
+- ⬜ `cargador.html`/`csms.html` siguen usando `BroadcastChannel` (solo entre pestañas del mismo navegador)
 
 ## Decisiones técnicas clave
 
@@ -30,25 +39,23 @@ Decisión ya tomada: MubOn y el mercado EV usan OCPP 1.6 como protocolo estánda
 
 ## Próximos pasos (orden sugerido)
 
-1. **Fase 2 — CSMS real en Node.js**: reemplazar `BroadcastChannel` por servidor `ws` (WebSocket), extendiendo `relay.js` con handlers OCPP (`BootNotification`, `Authorize`, `StartTransaction`, `MeterValues`, `StopTransaction`) — ver estructura ya diseñada (router.js + handlers/ + Supabase).
-2. **Fase 3 — Firmware ESP32-S3**: cliente WebSocket OCPP 1.6J sobre WiFi nativo del ESP32-S3 (sin módulo 4G en esta fase — ver decisión de conectividad: WiFi para prototipo/residencial, Ethernet W5500 para conjuntos/comercios, 4G EC21-G solo para producción outdoor).
-3. **Fase 4 — Persistencia**: sesiones y CDR (Charge Data Record) en Supabase, igual patrón que `iit-ordenes-servicio-v2`.
-4. **Fase 5 — Facturación**: integración con MATIAS API (DIAN) ya construida en `iit-facturacion`, para generar factura electrónica por sesión de carga.
-5. **Fase 6 — Hardware**: PCB propio con ESP32-S3-N16R8, RCD Tipo B 30mA (Schneider A9R81240, no el A9R35240 que es 300mA Tipo A — descartado), contactor 32A, medidor PZEM-004T, conector J1772.
+1. **Conectar el cargador real** al CSMS de `server/` por IP fija en la LAN y capturar el tráfico (GetConfiguration completo, measurands que envía, formato del chargePointId).
+2. **Portar los handlers** al módulo `ocpp-gateway` de Electrolineras (NestJS + PostgreSQL), con sesiones y CDR persistidos.
+3. **Autorización y tarifa por operador**, energía facturada como `meterStop − meterStart`.
+4. **Cobro y dispersión** con Wompi.
+5. **TLS (`wss://`)** y conectividad 4G para operación en campo.
 
 ## Convenciones de este repo
 
 Siguiendo el workflow de trazabilidad usado en otros proyectos IIT (`iit-ordenes-servicio-v2`):
 - Issue en GitHub → fix → commit con `closes #N` → actualizar este `CLAUDE.md`
-- Sin `node_modules` versionado (no aplica aún, no hay dependencias)
+- Sin `node_modules` ni `server/logs/` versionados
 - Commits descriptivos en español, cuerpo del commit explica el "por qué" no solo el "qué"
 
-## Referencias cruzadas (otros repos IIT relevantes)
+## Referencias cruzadas
 
-- `relay.js` — WebSocket broker central, target de integración para el CSMS real
-- `iit-facturacion` — microservicio MATIAS API / DIAN para la facturación de sesiones
-- `iit-ordenes-servicio-v2` — patrón de referencia para trazabilidad de issues y estructura Supabase
-- ESP32_GPIO_PRO_S3V5 — firmware base de referencia para el patrón de chunking PROGMEM si el cargador IIT termina con interfaz web embebida
+- Electrolineras — backend NestJS (`ocpp-gateway`, `sesiones`, `facturacion`), destino de integración del CSMS real
+- `Manual_Cargador_DC30kW_Completo_ES.docx` — manual en español del cargador con notas de instalación de IIT
 
 ---
 **Infraestructura-IT (IIT)** · Construye. Conecta. Evoluciona.

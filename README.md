@@ -35,14 +35,31 @@ Todo el tráfico se ve en el log de mensajes de ambas páginas, con el frame OCP
 
 Esta es la **fase 1** de validación — probar la lógica de estados y el formato de mensajes OCPP sin levantar infraestructura. No requiere Node.js, no requiere servidor, no requiere conexión a internet. Basta abrir los dos archivos en el navegador.
 
-La estructura de cada mensaje (`action`, `payload`, frame `[2, msgId, action, payload]`) es **idéntica** a la que usará el CSMS real en Node.js — el siguiente paso es reemplazar `BroadcastChannel` por `WebSocket` (`ws` en el cargador real con ESP32-S3, y el servidor `ws` de Node.js en `relay.js`).
+La estructura de cada mensaje (`action`, `payload`, frame `[2, msgId, action, payload]`) es **idéntica** a la del OCPP 1.6J real. El simulador reproduce el perfil del cargador físico DC 30 kW (modelo EU-30KW, placa MDXDC3001, firmware SSWL_DC-V1.0.69).
 
-## Próximos pasos (fase 2)
+## Fase 2 — CSMS en red local con el cargador real
 
-- [ ] Servidor CSMS real en Node.js (`ws` + Express) integrado a `relay.js`
-- [ ] Firmware ESP32-S3 con cliente WebSocket OCPP 1.6J (WiFi nativo)
-- [ ] Persistencia de sesiones en Supabase
-- [ ] Facturación vía MATIAS API (DIAN)
+La carpeta `server/` tiene un CSMS OCPP 1.6J mínimo en Node.js (`ws`) que el cargador físico puede usar como servidor en la LAN. Responde BootNotification, Heartbeat, StatusNotification, Authorize, StartTransaction (con `transactionId` incremental), MeterValues, StopTransaction y DataTransfer, y guarda todo el tráfico en `server/logs/*.jsonl`.
+
+```
+cd server
+npm install
+npm start
+```
+
+En el cargador (menú de administración, clave de fábrica 1234):
+
+- **Net Settings**: `com_type` = Ethernet, `dhcp` = off, IP fija, máscara y gateway de la misma red que el PC.
+- **Basic Settings**: `domain_master` = `ws://<IP-del-PC>:9000/ocpp`, `pile_number_master` = número de serie, `Time setting` con la hora actual.
+
+Comandos por consola: `start`, `stop`, `reset`, `config`, `set <clave> <valor>`, `trigger <Mensaje>`, `list`.
+
+## Próximos pasos
+
+- [ ] Integrar los handlers en el módulo `ocpp-gateway` de Electrolineras (NestJS + PostgreSQL)
+- [ ] Autorización de idTag contra la base de datos del operador
+- [ ] Tarifa por operador y facturación por sesión (Wompi)
+- [ ] TLS (`wss://`) para operación fuera de la LAN
 
 ## Stack
 

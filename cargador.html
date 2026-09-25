@@ -154,7 +154,7 @@
     </svg>
     <div>
       <h1>CARGADOR <span>IIT</span> — Simulador</h1>
-      <div class="subtitle">CHARGE POINT · OCPP 1.6J · ESP32_GPIO_PRO_S3V5</div>
+      <div class="subtitle">CHARGE POINT · OCPP 1.6J · DC 30 kW · EU-30KW (MDXDC3001)</div>
     </div>
   </header>
 
@@ -254,7 +254,7 @@
 </div>
 
 <script>
-const CHARGE_POINT_ID = 'IIT-CHARGER-001';
+const CHARGE_POINT_ID = 'MDX20260715001';
 const channel = new BroadcastChannel('ocpp-iit-channel');
 
 let state = {
@@ -304,9 +304,10 @@ function broadcastMsg(action, payload, msgType='req'){
 // ── BOOT ──
 function sendBoot(){
   broadcastMsg('BootNotification', {
-    chargePointVendor: 'IIT',
-    chargePointModel: 'ESP32_GPIO_PRO_S3V5',
-    firmwareVersion: '1.0.0'
+    chargePointVendor: 'SSWL',
+    chargePointModel: 'EU-30KW',
+    chargePointSerialNumber: 'MDX20260715001',
+    firmwareVersion: 'SSWL_DC-V1.0.69'
   });
   $('connDot').classList.add('live');
   $('btnBoot').disabled = true;
@@ -346,6 +347,7 @@ function unplug(){
 // ── TRANSACTION ──
 function sendStartTransaction(){
   state.meterWh = 0;
+  state.soc = 35;
   broadcastMsg('StartTransaction', {
     connectorId: 1,
     idTag: state.idTag || $('idTag').value,
@@ -393,9 +395,11 @@ function stopMeterValues(){
 }
 
 function sendMeterValues(){
-  const watts = 6800 + Math.round(Math.random()*400 - 200);
-  const volts = 219 + Math.random()*2;
-  const amps = watts / volts;
+  // Perfil DC CCS2 según la carga real registrada en los logs del equipo: ~422 V, 50–65 A (≈21–27 kW)
+  const volts = 420 + Math.random()*4;
+  const amps = 50 + Math.random()*15;
+  const watts = volts * amps;
+  state.soc = Math.min(100, (state.soc ?? 35) + 0.05);
   state.meterWh += (watts * 3) / 3600; // 3s interval → Wh acumulados
 
   $('mKwh').innerHTML = (state.meterWh/1000).toFixed(3) + '<span class="meter-unit">kWh</span>';
@@ -412,7 +416,8 @@ function sendMeterValues(){
         { value: state.meterWh.toFixed(1), measurand: 'Energy.Active.Import.Register', unit: 'Wh' },
         { value: watts.toFixed(0), measurand: 'Power.Active.Import', unit: 'W' },
         { value: volts.toFixed(1), measurand: 'Voltage', unit: 'V' },
-        { value: amps.toFixed(2), measurand: 'Current.Import', unit: 'A' }
+        { value: amps.toFixed(2), measurand: 'Current.Import', unit: 'A' },
+        { value: state.soc.toFixed(0), measurand: 'SoC', unit: 'Percent' }
       ]
     }]
   });
