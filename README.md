@@ -56,7 +56,9 @@ En el cargador (menú de administración, clave de fábrica 1234):
 
 Con el servidor corriendo, abre `http://<IP-del-PC>:9000/`. El panel lista los 24 comandos que OCPP 1.6J define del CSMS al cargador (Core, gestión de firmware, lista local, reservas, carga inteligente y disparo remoto), con un payload de ejemplo editable. Muestra la respuesta de cada uno y arma una matriz de compatibilidad que se puede descargar en JSON. El botón *Probar los comandos de solo lectura* ejecuta en secuencia los que no cambian el estado del cargador.
 
-Para probar el panel sin el equipo real, en otra terminal: `npm run sim` (cargador simulado EU-30KW).
+La sección *Carga en curso* muestra en vivo potencia, voltaje, corriente, SoC, energía entregada y tiempo de carga, con una gráfica de cada variable. Se arma con los StartTransaction, MeterValues y StopTransaction del cargador, y se recupera si recargas la página.
+
+Para probar el panel sin el equipo real, en otra terminal: `npm run sim`. El simulador reproduce una carga DC realista de un vehículo con batería de 60 kWh: ~70 A a potencia casi constante hasta el 80 % de SoC y luego reducción gradual de corriente, dentro de los límites del EU-30KW (30 kW, 100 A). El tiempo va acelerado (x20 por defecto). Variables: `SIM_SPEED`, `BATERIA_KWH`, `SOC_INICIAL`, `SOC_FINAL`, `CORRIENTE_VE`, `CSMS_URL`.
 
 Comandos por consola: `start`, `stop`, `reset`, `config`, `set <clave> <valor>`, `trigger <Mensaje>`, `list`.
 

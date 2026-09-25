@@ -71,6 +71,22 @@ td{padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; wor
 .tablewrap{max-height:380px; overflow:auto; border:1px solid var(--line); border-radius:8px;}
 .empty{color:var(--dim); line-height:1.7;}
 
+/* ── Sesión de carga ── */
+.session-sec{grid-column:1 / -1; border-top:1px solid var(--line); padding:22px 24px;}
+.sess-state{color:var(--dim); line-height:1.6;}
+.sess-state b{color:var(--text); font-weight:700;}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; margin:14px 0 16px;}
+.kpi{background:var(--panel); padding:14px 16px;}
+.kpi .l{color:var(--dim); font-size:11px;}
+.kpi .n{font-family:var(--display); font-weight:800; font-size:28px; line-height:1.15; margin-top:4px; font-variant-numeric:tabular-nums;}
+.kpi .u{font-family:var(--mono); font-size:12px; color:var(--dim); font-weight:400; margin-left:4px;}
+.kpi .n.empty{color:var(--line);}
+.kpi.power .n{color:var(--cyan);} .kpi.volt .n{color:#a78bfa;} .kpi.curr .n{color:var(--green);} .kpi.soc .n{color:var(--amber);}
+.charts{display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:12px;}
+.chart{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 12px 6px;}
+.chart .h{display:flex; justify-content:space-between; color:var(--dim); font-size:11px; margin:0 4px 6px;}
+.chart canvas{display:block; width:100%; height:170px;}
+
 /* ── Matriz de compatibilidad ── */
 .matrix-sec{grid-column:1 / -1; border-top:1px solid var(--line); padding:22px 24px;}
 .sec-head{display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
@@ -124,6 +140,29 @@ td{padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; wor
     <h2>Respuesta</h2>
     <div class="status"><span class="big none" id="respStatus">Sin enviar</span><span class="hint" id="respMeta"></span></div>
     <div id="respBody"><p class="empty">Elige un comando a la izquierda, revisa el payload y envíalo. La respuesta del cargador aparece aquí.</p></div>
+  </section>
+
+  <section class="session-sec" aria-live="polite">
+    <div class="sec-head">
+      <h2 style="font-family:var(--display);font-weight:700;font-size:18px;" id="sessTitle">Sesión de carga</h2>
+      <span class="hint" id="sessHint"></span>
+    </div>
+    <p class="sess-state" id="sessState">No hay ninguna carga. Envía RemoteStartTransaction para iniciar una, o pasa una tarjeta en el cargador.</p>
+    <div class="kpis">
+      <div class="kpi power"><div class="l">Potencia</div><div class="n empty" id="kW">—<span class="u">kW</span></div></div>
+      <div class="kpi volt"><div class="l">Voltaje</div><div class="n empty" id="kV">—<span class="u">V</span></div></div>
+      <div class="kpi curr"><div class="l">Corriente</div><div class="n empty" id="kA">—<span class="u">A</span></div></div>
+      <div class="kpi soc"><div class="l">Batería (SoC)</div><div class="n empty" id="kSoc">—<span class="u">%</span></div></div>
+      <div class="kpi"><div class="l">Energía entregada</div><div class="n empty" id="kE">—<span class="u">kWh</span></div></div>
+      <div class="kpi"><div class="l">Tiempo de carga</div><div class="n empty" id="kT">—</div></div>
+    </div>
+    <p class="hint" style="margin-bottom:8px;">Eje horizontal: minutos desde el inicio de la carga.</p>
+    <div class="charts">
+      <div class="chart"><div class="h"><span>Potencia (kW)</span><span id="cW"></span></div><canvas id="chW"></canvas></div>
+      <div class="chart"><div class="h"><span>Voltaje (V)</span><span id="cV"></span></div><canvas id="chV"></canvas></div>
+      <div class="chart"><div class="h"><span>Corriente (A)</span><span id="cA"></span></div><canvas id="chA"></canvas></div>
+      <div class="chart"><div class="h"><span>Batería (SoC %)</span><span id="cS"></span></div><canvas id="chS"></canvas></div>
+    </div>
   </section>
 
   <section class="matrix-sec">
@@ -387,6 +426,169 @@ function logFrame(m){
   else if (f[0] === 4) log(cls, `${arrow} error ${f[2]} ${f[3] || ''}`, f[4]);
 }
 
+// ── Sesión de carga: se arma a partir de StartTransaction, MeterValues y StopTransaction ──
+const sessions = {};       // cpId -> { start, meterStart, idTag, txId, pts:[], ended, end, meterStop, reason }
+const startCalls = {};     // uniqueId del StartTransaction -> cpId
+
+function num(x){ const v = parseFloat(x); return Number.isFinite(v) ? v : null; }
+function readSample(sampled){
+  // Toma los valores totales; si solo hay valores por fase, suma potencia/corriente y promedia tensión
+  const out = {}, phased = {};
+  for (const sv of sampled || []){
+    const m = sv.measurand || 'Energy.Active.Import.Register';
+    let v = num(sv.value); if (v == null) continue;
+    const unit = (sv.unit || '').toLowerCase();
+    if (unit === 'kwh' || unit === 'kw') v *= 1000;
+    const key = { 'Energy.Active.Import.Register':'wh', 'Power.Active.Import':'w', 'Voltage':'v', 'Current.Import':'a', 'SoC':'soc' }[m];
+    if (!key) continue;
+    if (sv.phase){ (phased[key] = phased[key] || []).push(v); continue; }
+    if (out[key] == null) out[key] = v;
+  }
+  for (const [k, arr] of Object.entries(phased)){
+    if (out[k] != null) continue;
+    out[k] = k === 'v' ? arr.reduce((a,b)=>a+b,0) / arr.length : arr.reduce((a,b)=>a+b,0);
+  }
+  return out;
+}
+
+function sessionFrame(m){
+  const f = m.frame, cp = m.cpId;
+  if (m.dir === 'in' && f[0] === 2){
+    const action = f[2], p = f[3] || {};
+    if (action === 'StartTransaction'){
+      sessions[cp] = { start: Date.parse(p.timestamp) || Date.parse(m.ts), meterStart: num(p.meterStart), idTag: p.idTag, txId: null, pts: [], ended: false };
+      startCalls[f[1]] = cp;
+    } else if (action === 'MeterValues'){
+      const s = sessions[cp];
+      if (!s || s.ended) return false;
+      if (p.transactionId != null && s.txId != null && p.transactionId !== s.txId) return false;
+      for (const mv of p.meterValue || []){
+        const r = readSample(mv.sampledValue);
+        if (r.w == null && r.v != null && r.a != null) r.w = r.v * r.a;
+        s.pts.push({ t: Date.parse(mv.timestamp) || Date.parse(m.ts), ...r });
+      }
+    } else if (action === 'StopTransaction'){
+      const s = sessions[cp];
+      if (!s) return false;
+      Object.assign(s, { ended: true, end: Date.parse(p.timestamp) || Date.parse(m.ts), meterStop: num(p.meterStop), reason: p.reason || 'Local' });
+    } else return false;
+    return true;
+  }
+  if (m.dir === 'out' && f[0] === 3 && startCalls[f[1]]){
+    const s = sessions[startCalls[f[1]]];
+    if (s) s.txId = (f[2] || {}).transactionId ?? null;
+    delete startCalls[f[1]];
+    return true;
+  }
+  return false;
+}
+
+const fmt = (v, d) => v == null ? '—' : v.toLocaleString('es-CO', { minimumFractionDigits:d, maximumFractionDigits:d });
+function fmtDur(ms){
+  if (ms == null || ms < 0) return '—';
+  const t = Math.round(ms / 1000), h = Math.floor(t / 3600), mi = Math.floor(t % 3600 / 60), se = t % 60;
+  return `${h}:${String(mi).padStart(2,'0')}:${String(se).padStart(2,'0')}`;
+}
+function sessionEnergyWh(s){
+  const last = [...s.pts].reverse().find(p => p.wh != null);
+  const endWh = s.ended && s.meterStop != null ? s.meterStop : last ? last.wh : null;
+  if (endWh != null && s.meterStart != null) return Math.max(0, endWh - s.meterStart);
+  // Sin registro de energía: integrar la potencia
+  let e = 0; for (let i = 1; i < s.pts.length; i++) if (s.pts[i].w != null) e += s.pts[i].w * (s.pts[i].t - s.pts[i-1].t) / 3600000;
+  return e;
+}
+
+function setKpi(id, text){ const el = $(id); el.firstChild.nodeValue = text; el.classList.toggle('empty', text === '—'); }
+function renderSession(){
+  const s = sessions[cpId];
+  const last = s && s.pts.length ? s.pts[s.pts.length - 1] : null;
+  const live = s && !s.ended;
+  setKpi('kW', live && last && last.w != null ? fmt(last.w / 1000, 1) : '—');
+  setKpi('kV', live && last && last.v != null ? fmt(last.v, 1) : '—');
+  setKpi('kA', live && last && last.a != null ? fmt(last.a, 1) : '—');
+  const lastSoc = s ? [...s.pts].reverse().find(p => p.soc != null) : null;
+  setKpi('kSoc', lastSoc ? fmt(lastSoc.soc, 0) : '—');
+  const wh = s ? sessionEnergyWh(s) : null;
+  setKpi('kE', s ? fmt(wh / 1000, 2) : '—');
+  const endT = s ? (s.ended ? s.end : last ? last.t : s.start) : null;
+  $('kT').textContent = s ? fmtDur(endT - s.start) : '—';
+  $('kT').classList.toggle('empty', !s);
+  $('sessTitle').textContent = live ? 'Carga en curso' : s ? 'Última carga' : 'Sesión de carga';
+
+  if (!s){
+    $('sessState').textContent = 'No hay ninguna carga. Envía RemoteStartTransaction para iniciar una, o pasa una tarjeta en el cargador.';
+    $('sessHint').textContent = '';
+  } else if (live){
+    $('sessState').innerHTML = `<b>Cargando</b> · transacción ${esc(s.txId ?? '…')} · tarjeta ${esc(s.idTag || '—')} · inicio ${new Date(s.start).toLocaleTimeString('es-CO',{hour12:false})}`;
+    $('sessHint').textContent = `${s.pts.length} lecturas`;
+  } else {
+    const ws_ = s.pts.map(p => p.w).filter(v => v != null);
+    const avg = s.end > s.start ? wh / ((s.end - s.start) / 3600000) : null;
+    const socs = s.pts.map(p => p.soc).filter(v => v != null);
+    $('sessState').innerHTML = `<b>Carga terminada</b> · ${fmt(wh / 1000, 2)} kWh en ${fmtDur(s.end - s.start)} · promedio ${fmt(avg / 1000, 1)} kW · pico ${fmt(ws_.length ? Math.max(...ws_) / 1000 : null, 1)} kW` +
+      (socs.length ? ` · SoC ${fmt(socs[0],0)} → ${fmt(socs[socs.length-1],0)} %` : '') + ` · motivo ${esc(s.reason)}`;
+    $('sessHint').textContent = `${s.pts.length} lecturas`;
+  }
+  scheduleCharts();
+}
+
+// Gráficas en canvas, sin librerías externas
+const CHARTS = [
+  { id:'chW', lbl:'cW', key:'w', k:1/1000, d:1, color:'#00d4ff', zero:true },
+  { id:'chV', lbl:'cV', key:'v', k:1, d:0, color:'#a78bfa', zero:false },
+  { id:'chA', lbl:'cA', key:'a', k:1, d:0, color:'#10b981', zero:true },
+  { id:'chS', lbl:'cS', key:'soc', k:1, d:0, color:'#f59e0b', zero:true, max:100 },
+];
+let chartsQueued = false;
+function scheduleCharts(){ if (!chartsQueued){ chartsQueued = true; requestAnimationFrame(() => { chartsQueued = false; drawCharts(); }); } }
+function niceStep(range, target){
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+function drawCharts(){
+  const s = sessions[cpId];
+  for (const c of CHARTS){
+    const cv = $(c.id), dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth, H = cv.clientHeight;
+    if (!W) continue;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    const pts = s ? s.pts.filter(p => p[c.key] != null).map(p => ({ x: (p.t - s.start) / 60000, y: p[c.key] * c.k })) : [];
+    const L = 40, R = 10, T = 8, B = 22, pw = W - L - R, ph = H - T - B;
+    const xMax = Math.max(pts.length ? pts[pts.length - 1].x : 0, 5);
+    let yMin = c.zero ? 0 : (pts.length ? Math.min(...pts.map(p => p.y)) : 0);
+    let yMax = c.max ?? (pts.length ? Math.max(...pts.map(p => p.y)) : 1);
+    if (!c.zero){ const pad = Math.max(5, (yMax - yMin) * 0.15); yMin -= pad; yMax += pad; } else if (c.max == null) yMax = yMax * 1.15 || 1;
+    const ys = niceStep(yMax - yMin, 4); yMin = Math.floor(yMin / ys) * ys; yMax = Math.ceil(yMax / ys) * ys;
+    const xs = niceStep(xMax, Math.max(2, Math.floor(pw / 55)));
+    const X = x => L + x / xMax * pw, Y = y => T + ph - (y - yMin) / (yMax - yMin) * ph;
+
+    g.font = '10px "Space Mono", Consolas, monospace'; g.textBaseline = 'middle';
+    g.strokeStyle = '#1c2530'; g.fillStyle = '#6b7785'; g.lineWidth = 1;
+    for (let y = yMin; y <= yMax + 1e-9; y += ys){
+      g.beginPath(); g.moveTo(L, Math.round(Y(y)) + .5); g.lineTo(W - R, Math.round(Y(y)) + .5); g.stroke();
+      g.textAlign = 'right'; g.fillText(fmt(y, ys < 1 ? 1 : 0), L - 6, Y(y));
+    }
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    for (let x = 0; x <= xMax + 1e-9; x += xs) g.fillText(fmt(x, xs < 1 ? 1 : 0), Math.min(X(x), W - R - 8), H - B + 6);
+
+    $(c.lbl).textContent = pts.length ? `${fmt(pts[pts.length - 1].y, c.d)} · máx ${fmt(Math.max(...pts.map(p => p.y)), c.d)}` : '';
+    if (pts.length < 1) continue;
+    g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y)));
+    g.strokeStyle = c.color; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
+    g.lineTo(X(pts[pts.length - 1].x), Y(yMin)); g.lineTo(X(pts[0].x), Y(yMin)); g.closePath();
+    g.globalAlpha = 0.08; g.fillStyle = c.color; g.fill(); g.globalAlpha = 1;
+    const lp = pts[pts.length - 1];
+    g.beginPath(); g.arc(X(lp.x), Y(lp.y), 3.5, 0, Math.PI * 2); g.fillStyle = c.color; g.fill();
+  }
+}
+window.addEventListener('resize', scheduleCharts);
+
+function onFrame(m){
+  logFrame(m);
+  if (sessionFrame(m) && m.cpId === cpId) renderSession();
+}
+
 // ── Cargadores ──
 function renderChargers(){
   const sel = $('cpSelect');
@@ -403,6 +605,7 @@ function renderChargers(){
       f('Firmware', b.firmwareVersion) + f('Transacción', c.activeTx);
   }
   updateSendState();
+  renderSession();
 }
 $('cpSelect').onchange = e => { cpId = e.target.value; renderChargers(); };
 
@@ -414,11 +617,18 @@ function connect(){
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
     switch (m.type){
-      case 'hello': case 'chargers':
-        chargers = m.type === 'hello' ? m.chargers : m.list; renderChargers(); break;
+      case 'hello':
+        $('log').innerHTML = '';
+        for (const k of Object.keys(sessions)) delete sessions[k];
+        chargers = m.chargers; renderChargers();
+        for (const f of m.recent || []){ logFrame(f); sessionFrame(f); }
+        renderSession();
+        break;
+      case 'chargers':
+        chargers = m.list; renderChargers(); break;
       case 'connected': log('sys', `Cargador ${m.cpId} conectado desde ${m.ip} · URL ${m.url} · subprotocolo ${m.protocol || 'ninguno'}`); break;
       case 'disconnected': log('sys', `Cargador ${m.cpId} desconectado (código ${m.code})`); break;
-      case 'frame': logFrame(m); break;
+      case 'frame': onFrame(m); break;
       case 'ack': if (pendingRefs[m.ref]){ inflight[m.id] = pendingRefs[m.ref]; delete pendingRefs[m.ref]; } break;
       case 'result': {
         let cmdId = inflight[m.id];

@@ -29,6 +29,8 @@ const chargers = new Map();   // cpId -> { ws, ip, url, activeTx, boot, connecte
 const pending = new Map();    // uniqueId -> { cpId, action, sentAt, timer }
 const sessions = new Map();   // transactionId -> { cpId, idTag, meterStart, start }
 const monitors = new Set();   // WebSockets del panel web
+const recent = [];            // últimos mensajes OCPP, para que el panel recupere la sesión al recargar
+const RECENT_MAX = 4000;
 let nextTxId = 1;
 
 const now = () => new Date().toISOString();
@@ -49,7 +51,10 @@ const pushChargers = () => broadcast({ type: 'chargers', list: chargerList() });
 function record(cpId, dir, frame) {
   const ts = now();
   logStream.write(JSON.stringify({ ts, cpId, dir, frame }) + '\n');
-  broadcast({ type: 'frame', ts, cpId, dir, frame });
+  const msg = { type: 'frame', ts, cpId, dir, frame };
+  recent.push(msg);
+  if (recent.length > RECENT_MAX) recent.splice(0, recent.length - RECENT_MAX);
+  broadcast(msg);
   const arrow = dir === 'in' ? '← CP→CSMS' : '→ CSMS→CP';
   console.log(`${t()} [${cpId}] ${arrow} ${JSON.stringify(frame)}`);
 }
@@ -150,7 +155,7 @@ wss.on('connection', (ws, req) => {
   // Panel web
   if (urlPath === '/monitor') {
     monitors.add(ws);
-    ws.send(JSON.stringify({ type: 'hello', port: PORT, chargers: chargerList() }));
+    ws.send(JSON.stringify({ type: 'hello', port: PORT, chargers: chargerList(), recent }));
     ws.on('message', (data) => {
       let msg; try { msg = JSON.parse(data.toString()); } catch { return; }
       if (msg.type === 'call' && msg.cpId && msg.action) {
