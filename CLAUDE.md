@@ -27,6 +27,8 @@ Banco de pruebas OCPP de la plataforma **Electrolineras** (marketplace de operad
 - ✅ Identidad visual IIT aplicada (cyan `#00d4ff`, verde `#10b981`, púrpura `#7c3aed`, Syne + Space Mono)
 - ⬜ Sin persistencia — todo el estado vive en memoria del navegador, se pierde al recargar
 - ✅ `server/csms-server.js` — CSMS OCPP 1.6J mínimo por WebSocket para conectar el cargador real en LAN; registra el tráfico en JSONL
+- ✅ `server/panel.html` — panel web servido por el CSMS: los 24 comandos CSMS→CP de OCPP 1.6J, respuestas y matriz de compatibilidad exportable
+- ✅ `server/sim-cargador.js` — cargador simulado por WebSocket (perfil EU-30KW) para probar el panel sin hardware
 - ⬜ `cargador.html`/`csms.html` siguen usando `BroadcastChannel` (solo entre pestañas del mismo navegador)
 
 ## Decisiones técnicas clave

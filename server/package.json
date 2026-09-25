@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "description": "CSMS OCPP 1.6J mínimo para probar el cargador DC 30 kW (MDXDC3001) en red local",
   "main": "csms-server.js",
-  "scripts": { "start": "node csms-server.js" },
-  "dependencies": { "ws": "^8.18.0" },
+  "scripts": {
+    "start": "node csms-server.js",
+    "sim": "node sim-cargador.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
   "license": "UNLICENSED"
 }

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IIT · Pruebas OCPP 1.6J</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b10; --panel:#0d1117; --card:#11161d; --line:#1c2530;
+  --text:#e6edf3; --dim:#6b7785;
+  --cyan:#00d4ff; --green:#10b981; --purple:#7c3aed; --amber:#f59e0b; --red:#ef4444;
+  --mono:'Space Mono', ui-monospace, Consolas, monospace;
+  --display:'Syne', 'Segoe UI', system-ui, sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; min-height:100vh;}
+button, select, textarea, input{font-family:inherit; font-size:inherit; color:inherit;}
+:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+/* ── Barra superior: estado del cargador ── */
+.top{display:flex; flex-wrap:wrap; align-items:center; gap:18px 28px; padding:16px 24px; border-bottom:1px solid var(--line); background:var(--panel);}
+.top h1{font-family:var(--display); font-weight:800; font-size:20px; letter-spacing:-0.2px;}
+.cp{display:flex; flex-wrap:wrap; gap:6px 22px; align-items:center; flex:1;}
+.cp .k{color:var(--dim);}
+.cp .v{color:var(--cyan); font-weight:700;}
+.link{display:flex; align-items:center; gap:8px; color:var(--dim);}
+.dot{width:9px; height:9px; border-radius:50%; background:var(--red);}
+.dot.on{background:var(--green); box-shadow:0 0 8px var(--green);}
+select{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:6px 8px;}
+
+/* ── Cuerpo ── */
+.main{display:grid; grid-template-columns:260px minmax(0,1fr) minmax(0,1fr); min-height:calc(100vh - 64px);}
+@media (max-width:1100px){.main{grid-template-columns:240px minmax(0,1fr);} .resp{grid-column:1 / -1; border-top:1px solid var(--line);}}
+@media (max-width:720px){.main{grid-template-columns:1fr;} .catalog{border-right:none; border-bottom:1px solid var(--line); max-height:320px;}}
+
+.catalog{border-right:1px solid var(--line); overflow-y:auto; padding:10px 0 24px;}
+.group{padding:14px 18px 6px; color:var(--dim); font-size:11px;}
+.cmd{display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none; border-left:3px solid transparent; padding:7px 16px 7px 15px; cursor:pointer;}
+.cmd:hover{background:var(--card);}
+.cmd.sel{background:var(--card); border-left-color:var(--cyan);}
+.cmd .name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cmd .sub{color:var(--dim);}
+.pip{width:10px; height:10px; border-radius:2px; background:var(--line); flex-shrink:0;}
+
+.editor, .resp{padding:22px 24px; display:flex; flex-direction:column; gap:14px; min-width:0;}
+.editor{border-right:1px solid var(--line);}
+.editor h2, .resp h2{font-family:var(--display); font-weight:700; font-size:22px;}
+.desc{color:var(--dim); line-height:1.6; max-width:68ch;}
+.risk{align-self:flex-start; font-size:11px; padding:3px 10px; border-radius:20px; border:1px solid currentColor;}
+.risk.seguro{color:var(--green);} .risk.cambia{color:var(--amber);} .risk.peligro{color:var(--red);}
+textarea{width:100%; min-height:220px; resize:vertical; background:#05070a; border:1px solid var(--line); border-radius:8px; padding:12px; line-height:1.55; font-size:12px;}
+textarea.bad{border-color:var(--red);}
+.row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+.btn{border:1px solid var(--line); background:var(--card); border-radius:8px; padding:10px 16px; cursor:pointer; font-weight:700;}
+.btn:hover:not(:disabled){filter:brightness(1.2);}
+.btn:disabled{opacity:.35; cursor:not-allowed;}
+.btn.primary{border-color:var(--cyan); color:var(--cyan);}
+.btn.ghost{color:var(--dim); font-weight:400;}
+.hint{color:var(--dim); font-size:11px;}
+
+/* ── Respuesta ── */
+.status{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
+.status .big{font-family:var(--display); font-weight:800; font-size:30px;}
+.ok{color:var(--green);} .warn{color:var(--amber);} .err{color:var(--red);} .wait{color:var(--cyan);} .none{color:var(--dim);}
+pre{background:#05070a; border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; max-height:360px; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word;}
+table{width:100%; border-collapse:collapse; font-size:12px;}
+th{text-align:left; color:var(--dim); font-weight:400; padding:6px 8px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel);}
+td{padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; word-break:break-word;}
+.tablewrap{max-height:380px; overflow:auto; border:1px solid var(--line); border-radius:8px;}
+.empty{color:var(--dim); line-height:1.7;}
+
+/* ── Matriz de compatibilidad ── */
+.matrix-sec{grid-column:1 / -1; border-top:1px solid var(--line); padding:22px 24px;}
+.sec-head{display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+.sec-head h2{font-family:var(--display); font-weight:700; font-size:18px;}
+.matrix{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px;}
+.tile{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:6px; padding:9px 11px; cursor:pointer; text-align:left;}
+.tile:hover{background:var(--card);}
+.tile .a{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.tile .r{font-size:11px; margin-top:3px; color:var(--dim);}
+.st-ok{border-left-color:var(--green);} .st-ok .r{color:var(--green);}
+.st-warn{border-left-color:var(--amber);} .st-warn .r{color:var(--amber);}
+.st-err{border-left-color:var(--red);} .st-err .r{color:var(--red);}
+.st-wait{border-left-color:var(--cyan);} .st-wait .r{color:var(--cyan);}
+.legend{display:flex; gap:16px; flex-wrap:wrap; color:var(--dim); font-size:11px; margin-top:12px;}
+.legend span::before{content:''; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:var(--c);}
+
+/* ── Registro ── */
+.log-sec{grid-column:1 / -1; border-top:1px solid var(--line); padding:22px 24px 40px;}
+.log{background:#05070a; border:1px solid var(--line); border-radius:8px; padding:10px 12px; height:320px; overflow-y:auto; font-size:11px; line-height:1.7;}
+.log div{white-space:pre-wrap; word-break:break-all;}
+.log .t{color:var(--dim);} .log .in{color:var(--green);} .log .out{color:var(--purple);} .log .sys{color:var(--dim); font-style:italic;}
+.log .p{color:#56606d;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Pruebas OCPP 1.6J</h1>
+  <div class="cp" id="cpInfo"><span class="k">Esperando a que un cargador se conecte…</span></div>
+  <select id="cpSelect" aria-label="Cargador" hidden></select>
+  <div class="link"><span class="dot" id="linkDot"></span><span id="linkTxt">Panel desconectado</span></div>
+</header>
+
+<div class="main">
+  <nav class="catalog" id="catalog" aria-label="Comandos OCPP"></nav>
+
+  <section class="editor">
+    <h2 id="cmdName">—</h2>
+    <span class="risk" id="cmdRisk"></span>
+    <p class="desc" id="cmdDesc"></p>
+    <label class="hint" for="payload">Payload (JSON editable)</label>
+    <textarea id="payload" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="btn primary" id="btnSend">Enviar al cargador</button>
+      <button class="btn ghost" id="btnResetPayload">Restaurar ejemplo</button>
+    </div>
+    <p class="hint" id="sendHint"></p>
+  </section>
+
+  <section class="resp">
+    <h2>Respuesta</h2>
+    <div class="status"><span class="big none" id="respStatus">Sin enviar</span><span class="hint" id="respMeta"></span></div>
+    <div id="respBody"><p class="empty">Elige un comando a la izquierda, revisa el payload y envíalo. La respuesta del cargador aparece aquí.</p></div>
+  </section>
+
+  <section class="matrix-sec">
+    <div class="sec-head">
+      <h2>Compatibilidad del cargador</h2>
+      <div class="row">
+        <button class="btn primary" id="btnSafe">Probar los comandos de solo lectura</button>
+        <button class="btn ghost" id="btnExport">Descargar resultados (JSON)</button>
+      </div>
+    </div>
+    <div class="matrix" id="matrix"></div>
+    <div class="legend">
+      <span style="--c:var(--green)">Aceptado</span>
+      <span style="--c:var(--amber)">Rechazado o no soportado</span>
+      <span style="--c:var(--red)">Error o sin respuesta</span>
+      <span style="--c:var(--line)">Sin probar</span>
+    </div>
+  </section>
+
+  <section class="log-sec">
+    <div class="sec-head">
+      <h2>Tráfico OCPP</h2>
+      <button class="btn ghost" id="btnClearLog">Limpiar</button>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+</div>
+
+<script>
+// ── Catálogo de comandos CSMS → cargador (OCPP 1.6J) ──
+const inMin = m => new Date(Date.now() + m * 60000).toISOString();
+const TRIGGERS = ['BootNotification','Heartbeat','StatusNotification','MeterValues','DiagnosticsStatusNotification','FirmwareStatusNotification'];
+
+const COMMANDS = [
+  { g:'Core', id:'GetConfiguration', risk:'seguro',
+    desc:'Lee todas las claves de configuración OCPP del cargador. Con "key": ["Clave"] lee solo esa.',
+    p:() => ({}) },
+  { g:'Core', id:'ChangeConfiguration', risk:'cambia',
+    desc:'Cambia una clave de configuración. Responde Accepted, Rejected, RebootRequired o NotSupported. Revisa primero el valor actual con GetConfiguration.',
+    p:() => ({ key:'HeartbeatInterval', value:'60' }) },
+  { g:'Core', id:'RemoteStartTransaction', risk:'cambia',
+    desc:'Pide iniciar una carga con el idTag indicado. Para que entregue energía debe haber un vehículo conectado.',
+    p:() => ({ connectorId:1, idTag:'AF22FF0B' }) },
+  { g:'Core', id:'RemoteStopTransaction', risk:'cambia',
+    desc:'Pide detener la carga en curso. Se llena con la transacción activa si la hay.',
+    p:() => ({ transactionId: activeTx() ?? 1 }) },
+  { g:'Core', id:'UnlockConnector', risk:'cambia',
+    desc:'Libera el bloqueo del conector. Si hay una carga activa, el cargador la detiene primero.',
+    p:() => ({ connectorId:1 }) },
+  { g:'Core', id:'ChangeAvailability', risk:'cambia',
+    desc:'Pone el cargador (connectorId 0) o un conector en servicio (Operative) o fuera de servicio (Inoperative). El ejemplo usa Operative, que no cambia nada si ya está en servicio.',
+    p:() => ({ connectorId:0, type:'Operative' }) },
+  { g:'Core', id:'ClearCache', risk:'cambia',
+    desc:'Borra la caché de autorizaciones (idTags recordados) del cargador.',
+    p:() => ({}) },
+  { g:'Core', id:'DataTransfer', risk:'seguro',
+    desc:'Mensaje propietario del fabricante. Con un vendorId desconocido debe responder UnknownVendorId; prueba también "SSWL".',
+    p:() => ({ vendorId:'IIT', messageId:'test', data:'' }) },
+  { g:'Core', id:'Reset', risk:'peligro',
+    desc:'Reinicia el cargador. Soft cierra las sesiones de forma ordenada; Hard reinicia de inmediato. Se desconectará y volverá a enviar BootNotification.',
+    p:() => ({ type:'Soft' }) },
+
+  { g:'Gestión de firmware', id:'GetDiagnostics', risk:'cambia',
+    desc:'Pide subir un archivo de diagnóstico a la URL indicada. Sin servidor FTP, aceptará y luego informará UploadFailed con DiagnosticsStatusNotification.',
+    p:() => ({ location:'ftp://192.168.1.2/diagnosticos/' }) },
+  { g:'Gestión de firmware', id:'UpdateFirmware', risk:'peligro',
+    desc:'Ordena descargar e instalar firmware desde la URL. Solo úsalo con un archivo oficial del fabricante. Con la URL de ejemplo solo prueba si el comando existe; la descarga fallará.',
+    p:() => ({ location:'ftp://192.168.1.2/firmware/no-existe.bin', retrieveDate: inMin(1440) }) },
+
+  { g:'Lista local de autorización', id:'GetLocalListVersion', risk:'seguro',
+    desc:'Consulta la versión de la lista local de tarjetas. -1 significa que no la soporta; 0, que está vacía.',
+    p:() => ({}) },
+  { g:'Lista local de autorización', id:'SendLocalList', risk:'cambia',
+    desc:'Carga en el cargador la lista de tarjetas autorizadas para operar sin conexión. El ejemplo lleva las dos tarjetas de fábrica.',
+    p:() => ({ listVersion:1, updateType:'Full', localAuthorizationList:[
+      { idTag:'AF22FF0B', idTagInfo:{ status:'Accepted' } },
+      { idTag:'AF1DC86B', idTagInfo:{ status:'Accepted' } } ] }) },
+
+  { g:'Reservas', id:'ReserveNow', risk:'cambia',
+    desc:'Reserva el conector para un idTag hasta la hora indicada (el ejemplo vence en 15 minutos).',
+    p:() => ({ connectorId:1, expiryDate: inMin(15), idTag:'AF22FF0B', reservationId:1 }) },
+  { g:'Reservas', id:'CancelReservation', risk:'cambia',
+    desc:'Cancela una reserva por su reservationId.',
+    p:() => ({ reservationId:1 }) },
+
+  { g:'Carga inteligente', id:'GetCompositeSchedule', risk:'seguro',
+    desc:'Consulta el perfil de potencia que el cargador aplicaría en la próxima hora.',
+    p:() => ({ connectorId:1, duration:3600, chargingRateUnit:'W' }) },
+  { g:'Carga inteligente', id:'SetChargingProfile', risk:'cambia',
+    desc:'Fija un límite de potencia por defecto para las cargas del conector 1. El ejemplo limita a 15 kW; bórralo después con ClearChargingProfile.',
+    p:() => ({ connectorId:1, csChargingProfiles:{
+      chargingProfileId:1, stackLevel:0, chargingProfilePurpose:'TxDefaultProfile', chargingProfileKind:'Relative',
+      chargingSchedule:{ chargingRateUnit:'W', chargingSchedulePeriod:[{ startPeriod:0, limit:15000 }] } } }) },
+  { g:'Carga inteligente', id:'ClearChargingProfile', risk:'cambia',
+    desc:'Borra el perfil de carga con ese id.',
+    p:() => ({ id:1 }) },
+
+  ...TRIGGERS.map(m => ({ g:'Disparo remoto', id:`TriggerMessage:${m}`, action:'TriggerMessage', sub:m, risk:'seguro',
+    desc:`Pide al cargador que envíe ahora un ${m}. Si acepta, el mensaje aparecerá en el tráfico OCPP enseguida.`,
+    p:() => m === 'BootNotification' || m.endsWith('StatusNotification') && m !== 'StatusNotification'
+      ? { requestedMessage:m } : { requestedMessage:m, connectorId:1 } })),
+];
+COMMANDS.forEach(c => { c.action = c.action || c.id; });
+const RISK_TXT = { seguro:'Solo lectura', cambia:'Cambia el estado del cargador', peligro:'Delicado: confirma antes de enviar' };
+
+// ── Estado ──
+let ws, chargers = [], cpId = null, selected = COMMANDS[0];
+const results = {};          // command id -> {cls, label, kind, payload|error, ms, at}
+const inflight = {};         // call id -> command id
+const pendingRefs = {};      // ref -> command id
+let safeRun = null;          // cola de la prueba automática
+const $ = id => document.getElementById(id);
+const activeTx = () => (chargers.find(c => c.id === cpId) || {}).activeTx ?? null;
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// ── Catálogo y editor ──
+function renderCatalog(){
+  let html = '', group = '';
+  for (const c of COMMANDS){
+    if (c.g !== group){ group = c.g; html += `<div class="group">${esc(group)}</div>`; }
+    const r = results[c.id];
+    html += `<button class="cmd ${c === selected ? 'sel' : ''}" data-id="${esc(c.id)}">
+      <span class="pip" style="background:${r ? colorOf(r.cls) : 'var(--line)'}"></span>
+      <span class="name">${esc(c.action)}${c.sub ? ` <span class="sub">${esc(c.sub)}</span>` : ''}</span></button>`;
+  }
+  $('catalog').innerHTML = html;
+}
+function colorOf(cls){ return {ok:'var(--green)', warn:'var(--amber)', err:'var(--red)', wait:'var(--cyan)'}[cls] || 'var(--line)'; }
+
+function select(c){
+  selected = c;
+  $('cmdName').textContent = c.sub ? `${c.action} · ${c.sub}` : c.action;
+  $('cmdRisk').textContent = RISK_TXT[c.risk];
+  $('cmdRisk').className = 'risk ' + c.risk;
+  $('cmdDesc').textContent = c.desc;
+  $('payload').value = JSON.stringify(c.p(), null, 2);
+  $('payload').classList.remove('bad');
+  renderCatalog();
+  showResult(c.id);
+  updateSendState();
+}
+
+function updateSendState(){
+  const connected = ws && ws.readyState === 1 && cpId;
+  $('btnSend').disabled = !connected;
+  $('btnSafe').disabled = !connected || !!safeRun;
+  $('sendHint').textContent = !ws || ws.readyState !== 1 ? 'El panel no está conectado al servidor.'
+    : !cpId ? 'Conecta el cargador para poder enviar comandos.' : `Se enviará a ${cpId}.`;
+}
+
+function sendCommand(c, payload){
+  const ref = 'r' + Date.now() + Math.random().toString(16).slice(2, 6);
+  pendingRefs[ref] = c.id;
+  results[c.id] = { cls:'wait', label:'Esperando…', at:new Date().toISOString() };
+  ws.send(JSON.stringify({ type:'call', ref, cpId, action:c.action, payload }));
+  refreshResultViews(c.id);
+}
+
+$('btnSend').onclick = () => {
+  let payload;
+  try { payload = JSON.parse($('payload').value || '{}'); $('payload').classList.remove('bad'); }
+  catch (e){ $('payload').classList.add('bad'); $('sendHint').textContent = 'El JSON no es válido: ' + e.message; return; }
+  if (selected.risk === 'peligro' && !confirm(`${selected.action} puede reiniciar o afectar el cargador. ¿Enviar de todas formas?`)) return;
+  if (selected.risk === 'cambia' && !confirm(`${selected.action} cambia el estado del cargador. ¿Enviar?`)) return;
+  sendCommand(selected, payload);
+};
+$('btnResetPayload').onclick = () => select(selected);
+$('catalog').onclick = e => { const b = e.target.closest('.cmd'); if (b) select(COMMANDS.find(c => c.id === b.dataset.id)); };
+
+// ── Resultados ──
+function classify(action, m){
+  if (m.kind === 'timeout') return { cls:'err', label:'Sin respuesta' };
+  if (m.kind === 'error') return { cls: m.error === 'NotImplemented' || m.error === 'NotSupported' ? 'warn' : 'err', label: m.error };
+  const p = m.payload || {};
+  if (action === 'GetConfiguration') return { cls:'ok', label:`${(p.configurationKey || []).length} claves` };
+  if (action === 'GetLocalListVersion') return { cls: p.listVersion === -1 ? 'warn' : 'ok', label:`Versión ${p.listVersion}` };
+  if (action === 'GetDiagnostics') return { cls:'ok', label: p.fileName ? `Archivo ${p.fileName}` : 'Aceptado' };
+  if (action === 'UpdateFirmware') return { cls:'ok', label:'Aceptado' };
+  if (p.status) return { cls: p.status === 'Accepted' ? 'ok' : 'warn', label: p.status };
+  return { cls:'ok', label:'Respondió' };
+}
+
+function showResult(cmdId){
+  const r = results[cmdId];
+  const st = $('respStatus');
+  if (!r){ st.textContent = 'Sin enviar'; st.className = 'big none'; $('respMeta').textContent = ''; $('respBody').innerHTML = '<p class="empty">Todavía no has enviado este comando.</p>'; return; }
+  st.textContent = r.label; st.className = 'big ' + r.cls;
+  $('respMeta').textContent = r.ms != null ? `${r.ms} ms · ${new Date(r.at).toLocaleTimeString('es-CO',{hour12:false})}` : '';
+  if (r.cls === 'wait'){ $('respBody').innerHTML = '<p class="empty">Esperando la respuesta del cargador (máximo 30 s)…</p>'; return; }
+
+  let html = '';
+  const keys = r.payload && r.payload.configurationKey;
+  if (Array.isArray(keys) && keys.length){
+    html += `<div class="tablewrap"><table><thead><tr><th>Clave</th><th>Valor</th><th>Editable</th></tr></thead><tbody>${
+      keys.map(k => `<tr><td>${esc(k.key)}</td><td>${esc(k.value ?? '')}</td><td>${k.readonly ? 'No' : 'Sí'}</td></tr>`).join('')
+    }</tbody></table></div>`;
+    if ((r.payload.unknownKey || []).length) html += `<p class="hint">Claves desconocidas: ${esc(r.payload.unknownKey.join(', '))}</p>`;
+  }
+  if (r.kind === 'error') html += `<p class="desc">${esc(r.description || '')}</p>`;
+  if (r.kind === 'timeout') html += '<p class="desc">El cargador no respondió en 30 segundos. Puede que ignore este comando o que se haya desconectado.</p>';
+  const raw = r.kind === 'error' ? { errorCode:r.error, description:r.description, details:r.details } : r.payload;
+  if (raw !== undefined) html += `<pre>${esc(JSON.stringify(raw, null, 2))}</pre>`;
+  $('respBody').innerHTML = html;
+}
+
+function renderMatrix(){
+  $('matrix').innerHTML = COMMANDS.map(c => {
+    const r = results[c.id];
+    return `<button class="tile ${r ? 'st-' + r.cls : ''}" data-id="${esc(c.id)}" title="${esc(c.desc)}">
+      <div class="a">${esc(c.action)}${c.sub ? ' · ' + esc(c.sub) : ''}</div>
+      <div class="r">${r ? esc(r.label) : 'Sin probar'}</div></button>`;
+  }).join('');
+}
+$('matrix').onclick = e => { const b = e.target.closest('.tile'); if (b) select(COMMANDS.find(c => c.id === b.dataset.id)); };
+
+function refreshResultViews(cmdId){
+  renderMatrix(); renderCatalog();
+  if (selected.id === cmdId) showResult(cmdId);
+}
+
+// ── Prueba automática de comandos de solo lectura ──
+$('btnSafe').onclick = () => {
+  safeRun = COMMANDS.filter(c => c.risk === 'seguro').map(c => c.id);
+  log('sys', `Prueba automática: ${safeRun.length} comandos de solo lectura, uno tras otro.`);
+  updateSendState(); nextSafe();
+};
+function nextSafe(){
+  if (!safeRun) return;
+  const id = safeRun.shift();
+  if (!id){ safeRun = null; log('sys', 'Prueba automática terminada.'); updateSendState(); return; }
+  const c = COMMANDS.find(x => x.id === id);
+  sendCommand(c, c.p());
+}
+
+$('btnExport').onclick = () => {
+  const cp = chargers.find(c => c.id === cpId) || {};
+  const data = { generado: new Date().toISOString(), cargador: { id: cpId, ip: cp.ip, boot: cp.boot }, resultados: results };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }));
+  a.download = `ocpp-compatibilidad-${cpId || 'cargador'}-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+};
+
+// ── Registro ──
+function log(kind, text, payload){
+  const box = $('log');
+  const time = new Date().toLocaleTimeString('es-CO', { hour12:false });
+  const line = document.createElement('div');
+  line.innerHTML = `<span class="t">${time}</span> <span class="${kind}">${esc(text)}</span>${payload !== undefined ? ` <span class="p">${esc(JSON.stringify(payload))}</span>` : ''}`;
+  box.appendChild(line);
+  while (box.children.length > 600) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+$('btnClearLog').onclick = () => { $('log').innerHTML = ''; };
+
+function logFrame(m){
+  const f = m.frame, arrow = m.dir === 'in' ? '← cargador' : '→ CSMS';
+  const cls = m.dir === 'in' ? 'in' : 'out';
+  if (f[0] === 2) log(cls, `${arrow} ${f[2]}`, f[3]);
+  else if (f[0] === 3) log(cls, `${arrow} respuesta ${f[1]}`, f[2]);
+  else if (f[0] === 4) log(cls, `${arrow} error ${f[2]} ${f[3] || ''}`, f[4]);
+}
+
+// ── Cargadores ──
+function renderChargers(){
+  const sel = $('cpSelect');
+  if (!chargers.find(c => c.id === cpId)) cpId = chargers[0] ? chargers[0].id : null;
+  sel.hidden = chargers.length < 2;
+  sel.innerHTML = chargers.map(c => `<option value="${esc(c.id)}" ${c.id === cpId ? 'selected' : ''}>${esc(c.id)}</option>`).join('');
+  const c = chargers.find(x => x.id === cpId);
+  if (!c){ $('cpInfo').innerHTML = '<span class="k">Esperando a que un cargador se conecte…</span>'; }
+  else {
+    const b = c.boot || {};
+    const f = (k, v) => `<span><span class="k">${k}</span> <span class="v">${esc(v ?? '—')}</span></span>`;
+    $('cpInfo').innerHTML = f('Cargador', c.id) + f('IP', c.ip) +
+      f('Equipo', b.chargePointVendor ? `${b.chargePointVendor} ${b.chargePointModel || ''}` : 'sin BootNotification') +
+      f('Firmware', b.firmwareVersion) + f('Transacción', c.activeTx);
+  }
+  updateSendState();
+}
+$('cpSelect').onchange = e => { cpId = e.target.value; renderChargers(); };
+
+// ── Conexión con el servidor ──
+function connect(){
+  ws = new WebSocket(`ws://${location.host}/monitor`);
+  ws.onopen = () => { $('linkDot').classList.add('on'); $('linkTxt').textContent = 'Panel conectado'; log('sys', 'Panel conectado al CSMS.'); updateSendState(); };
+  ws.onclose = () => { $('linkDot').classList.remove('on'); $('linkTxt').textContent = 'Panel desconectado, reintentando…'; updateSendState(); setTimeout(connect, 2000); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    switch (m.type){
+      case 'hello': case 'chargers':
+        chargers = m.type === 'hello' ? m.chargers : m.list; renderChargers(); break;
+      case 'connected': log('sys', `Cargador ${m.cpId} conectado desde ${m.ip} · URL ${m.url} · subprotocolo ${m.protocol || 'ninguno'}`); break;
+      case 'disconnected': log('sys', `Cargador ${m.cpId} desconectado (código ${m.code})`); break;
+      case 'frame': logFrame(m); break;
+      case 'ack': if (pendingRefs[m.ref]){ inflight[m.id] = pendingRefs[m.ref]; delete pendingRefs[m.ref]; } break;
+      case 'result': {
+        let cmdId = inflight[m.id];
+        if (!cmdId){ // respuesta sin ack (p. ej. cargador no conectado): buscar el comando en espera
+          const ref = Object.keys(pendingRefs)[0]; if (ref){ cmdId = pendingRefs[ref]; delete pendingRefs[ref]; }
+        }
+        if (!cmdId) break;
+        delete inflight[m.id];
+        results[cmdId] = { ...classify(m.action, m), kind:m.kind, payload:m.payload, error:m.error, description:m.description, details:m.details, ms:m.ms, at:new Date().toISOString() };
+        refreshResultViews(cmdId);
+        if (safeRun) setTimeout(nextSafe, 400);
+        break;
+      }
+    }
+  };
+}
+
+renderMatrix();
+select(COMMANDS[0]);
+connect();
+</script>
+</body>
+</html>

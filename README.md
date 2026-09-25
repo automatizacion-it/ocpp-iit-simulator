@@ -52,6 +52,12 @@ En el cargador (menú de administración, clave de fábrica 1234):
 - **Net Settings**: `com_type` = Ethernet, `dhcp` = off, IP fija, máscara y gateway de la misma red que el PC.
 - **Basic Settings**: `domain_master` = `ws://<IP-del-PC>:9000/ocpp`, `pile_number_master` = número de serie, `Time setting` con la hora actual.
 
+### Panel de pruebas
+
+Con el servidor corriendo, abre `http://<IP-del-PC>:9000/`. El panel lista los 24 comandos que OCPP 1.6J define del CSMS al cargador (Core, gestión de firmware, lista local, reservas, carga inteligente y disparo remoto), con un payload de ejemplo editable. Muestra la respuesta de cada uno y arma una matriz de compatibilidad que se puede descargar en JSON. El botón *Probar los comandos de solo lectura* ejecuta en secuencia los que no cambian el estado del cargador.
+
+Para probar el panel sin el equipo real, en otra terminal: `npm run sim` (cargador simulado EU-30KW).
+
 Comandos por consola: `start`, `stop`, `reset`, `config`, `set <clave> <valor>`, `trigger <Mensaje>`, `list`.
 
 ## Próximos pasos
